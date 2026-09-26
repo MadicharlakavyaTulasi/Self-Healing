@@ -1,5 +1,5 @@
 const path = require('path');
-const {clickWithHealing} = require('../self-healing/healingEngine');
+const { clickWithHealing, fillWithHealing } = require('../self-healing/healingEngine');
 class LoginPage {
   constructor(page) {
     this.page = page;
@@ -9,7 +9,9 @@ class LoginPage {
     this.dropdownUrl = 'https://www.webdriveruniversity.com/Dropdown-Checkboxes-RadioButtons/index.html';
     this.uploadUrl = 'https://www.webdriveruniversity.com/File-Upload/index.html';
 
-    this.firstName = page.getByPlaceholder('First Name');
+    // this.firstName = page.getByPlaceholder('First Name');
+    this.firstName = page.locator('//input[@placeholder="First Na"]');
+
     this.lastName = page.getByPlaceholder('Last Name');
     this.emailAddress = page.getByPlaceholder('Email Address');
     this.comments = page.getByPlaceholder('Comments');
@@ -43,10 +45,10 @@ class LoginPage {
   }
 
   async fillContactUsForm({ firstName, lastName, email, comments }) {
-    await this.firstName.fill(firstName);
-    await this.lastName.fill(lastName);
-    await this.emailAddress.fill(email);
-    await this.comments.fill(comments);
+    await fillWithHealing(this.page, this.firstName, firstName, { hint: 'First Name' });
+    await fillWithHealing(this.page, this.lastName, lastName, { hint: 'Last Name' });
+    await fillWithHealing(this.page, this.emailAddress, email, { hint: 'Email Address' });
+    await fillWithHealing(this.page, this.comments, comments, { hint: 'Comments' });
   }
 
   async submitContactUs() {

@@ -7,17 +7,41 @@ const {
     generateLocator
 } = require('../utils/domInspector');
 
-async function tryOriginalLocator(page, locator, timeout = 3000) {
+function getLocator(page, locator) {
+    return typeof locator === 'string' ? page.locator(locator) : locator;
+}
+
+async function performAction(target, action, value, timeout) {
+    if (action === 'click') {
+        await target.click({ timeout });
+        return;
+    }
+    if (action === 'fill') {
+        await target.fill(value, { timeout });
+        return;
+    }
+
+    throw new Error(`Unsupported healing action: ${action}`);
+}
+
+async function tryOriginalAction(page, locator, action, value, timeout) {
     try {
-        await page.locator(locator).click({ timeout });
+        await performAction(getLocator(page, locator), action, value, timeout);
         return true;
     } catch (error) {
         return false;
     }
 }
 
-async function healLocator(page, originalLocator, options = {}) {
-    const locatorInfo = parseLocator(originalLocator);
+async function tryOriginalLocator(page, locator, timeout = 3000) {
+    return tryOriginalAction(page, locator, 'click', undefined, timeout);
+}
+
+async function healAction(page, originalLocator, action, value, options = {}) {
+    const locatorInfo = options.hint
+        ? { tag: options.tag?.toLowerCase() || null, attribute: 'text', value: options.hint }
+        : parseLocator(originalLocator);
+    const originalLabel = typeof originalLocator === 'string' ? originalLocator : '<Playwright Locator>';
     const elements = await inspectElements(page);
     const candidates = findCandidates(elements, locatorInfo);
     const bestMatch = findBestCandidate(candidates, locatorInfo);
@@ -27,7 +51,9 @@ async function healLocator(page, originalLocator, options = {}) {
         return {
             status: 'not-healed',
             success: false,
-            originalLocator,
+            action,
+            originalLocator: originalLabel,
+            hint: options.hint || null,
             healedLocator: null,
             score: bestMatch.score,
             runnerUpScore: bestMatch.runnerUpScore,
@@ -37,11 +63,13 @@ async function healLocator(page, originalLocator, options = {}) {
 
     const healedLocator = generateLocator(bestMatch.candidate);
     try {
-        await page.locator(healedLocator).click({ timeout: options.timeout ?? 3000 });
+        await performAction(page.locator(healedLocator), action, value, options.timeout ?? 3000);
         return {
             status: 'healed',
             success: true,
-            originalLocator,
+            action,
+            originalLocator: originalLabel,
+            hint: options.hint || null,
             healedLocator,
             score: bestMatch.score,
             runnerUpScore: bestMatch.runnerUpScore,
@@ -51,7 +79,9 @@ async function healLocator(page, originalLocator, options = {}) {
         return {
             status: 'failed',
             success: false,
-            originalLocator,
+            action,
+            originalLocator: originalLabel,
+            hint: options.hint || null,
             healedLocator,
             score: bestMatch.score,
             runnerUpScore: bestMatch.runnerUpScore,
@@ -61,21 +91,28 @@ async function healLocator(page, originalLocator, options = {}) {
     }
 }
 
-async function clickWithHealing(page, locator, options = {}) {
+async function healLocator(page, originalLocator, options = {}) {
+    return healAction(page, originalLocator, 'click', undefined, options);
+}
+
+async function performWithHealing(page, locator, action, value, options = {}) {
     const timeout = options.timeout ?? 3000;
+    const originalLabel = typeof locator === 'string' ? locator : '<Playwright Locator>';
     let result;
 
-    if (await tryOriginalLocator(page, locator, timeout)) {
+    if (await tryOriginalAction(page, locator, action, value, timeout)) {
         result = {
             status: 'original',
             success: true,
-            originalLocator: locator,
+            action,
+            originalLocator: originalLabel,
+            hint: options.hint || null,
             healedLocator: null,
             score: 1,
             candidate: null
         };
     } else {
-        result = await healLocator(page, locator, options);
+        result = await healAction(page, locator, action, value, options);
     }
 
     if (typeof options.onEvent === 'function') {
@@ -84,7 +121,7 @@ async function clickWithHealing(page, locator, options = {}) {
 
     if (!result.success) {
         const detail = result.error ? `: ${result.error}` : '';
-        const error = new Error(`Locator action failed: ${result.status} for ${locator}${detail}`);
+        const error = new Error(`Locator action failed: ${result.status} for ${originalLabel}${detail}`);
         error.healingResult = result;
         throw error;
     }
@@ -92,8 +129,17 @@ async function clickWithHealing(page, locator, options = {}) {
     return result;
 }
 
+async function clickWithHealing(page, locator, options = {}) {
+    return performWithHealing(page, locator, 'click', undefined, options);
+}
+
+async function fillWithHealing(page, locator, value, options = {}) {
+    return performWithHealing(page, locator, 'fill', value, options);
+}
+
 module.exports = {
     tryOriginalLocator,
     healLocator,
-    clickWithHealing
+    clickWithHealing,
+    fillWithHealing
 };

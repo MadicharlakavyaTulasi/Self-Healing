@@ -16,4 +16,6 @@ test('contactus Page valid Test', async ({ page }) => {
 
     await loginPage.submitContactUs();
     await expect(loginPage.successMessage).toContainText('Thank You for your Message!');
+
+    await page.waitForTimeout(5000);
 });
