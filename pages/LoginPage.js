@@ -10,7 +10,7 @@ class LoginPage {
     this.uploadUrl = 'https://www.webdriveruniversity.com/File-Upload/index.html';
 
     // this.firstName = page.getByPlaceholder('First Name');
-    this.firstName = page.locator('//input[@placeholder="First Na"]');
+    this.firstName = page.locator('//input[@placeholder="First Nam"]');
 
     this.lastName = page.getByPlaceholder('Last Name');
     this.emailAddress = page.getByPlaceholder('Email Address');
